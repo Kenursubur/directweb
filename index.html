@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - Random Redirect</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 1.6rem;
+      text-align: center;
+      color: #1a1a1a;
+    }
+    h2 {
+      font-size: 1.3rem;
+      margin: 24px 0 12px;
+      color: #444;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 12px 20px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      width: 100%;
+    }
+    button.primary {
+      background: #4CAF50;
+      color: white;
+    }
+    button.primary:hover {
+      background: #43a047;
+    }
+    button.danger {
+      background: #f44336;
+      color: white;
+    }
+    button.danger:hover {
+      background: #d32f2f;
+    }
+    button.copy {
+      background: #2196F3;
+      color: white;
+      width: auto;
+      padding: 8px 16px;
+      margin-left: 10px;
+    }
+    #status {
+      margin: 16px 0;
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .error {
+      background: #ffebee;
+      color: #c62828;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    li {
+      padding: 12px;
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.95rem;
+    }
+    li button {
+      width: auto;
+      padding: 6px 12px;
+      font-size: 0.9rem;
+    }
+    #generatedLink {
+      margin-top: 12px;
+      word-break: break-all;
+      background: #f0f8ff;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px dashed #90caf9;
+    }
+    .loading::after {
+      content: " ⏳";
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Admin Panel Random Redirect</h1>
+
+    <label for="token">Token Rahasia</label>
+    <input type="password" id="token" placeholder="Masukkan token (contoh: supersecretxyz)" autocomplete="off">
+
+    <h2>Tambah URL Baru</h2>
+    <input type="url" id="url" placeholder="https://example.com">
+    <button class="primary" onclick="sendAction('add')">Tambah URL</button>
+
+    <h2>Edit URL</h2>
+    <input type="url" id="oldUrl" placeholder="URL lama">
+    <input type="url" id="newUrl" placeholder="URL baru">
+    <button class="primary" onclick="sendEdit()">Edit URL</button>
+
+    <h2>Daftar URL Saat Ini</h2>
+    <button onclick="loadList()">Refresh Daftar</button>
+    <ul id="urlList">
+      <li>Belum ada data — klik Refresh Daftar</li>
+    </ul>
+
+    <h2>Generate Link Unik</h2>
+    <button class="primary" onclick="generateLink()">Buat Link Unik Baru</button>
+    <div id="generatedLink"></div>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const workerUrl = 'https://super-mountain-d0c2.kenursubur.workers.dev'; // GANTI JIKA PAKAI CUSTOM DOMAIN
+
+    // Auto load token dari localStorage
+    window.addEventListener('load', () => {
+      const savedToken = localStorage.getItem('adminToken');
+      if (savedToken) {
+        document.getElementById('token').value = savedToken;
+      }
+    });
+
+    function showStatus(msg, type = 'success') {
+      const status = document.getElementById('status');
+      status.textContent = msg;
+      status.className = type;
+      setTimeout(() => status.textContent = '', 8000);
+    }
+
+    async function getToken() {
+      const token = document.getElementById('token').value.trim();
+      if (!token) {
+        showStatus('Token rahasia wajib diisi!', 'error');
+        throw new Error('Token kosong');
+      }
+      localStorage.setItem('adminToken', token);
+      return token;
+    }
+
+    async function sendAction(action) {
+      try {
+        const token = await getToken();
+        const urlInput = document.getElementById('url').value.trim();
+        if (!urlInput) throw new Error('URL wajib diisi!');
+
+        const status = document.getElementById('status');
+        status.textContent = 'Memproses...';
+        status.className = 'loading';
+
+        const res = await fetch(`${workerUrl}/admin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Token': token
+          },
+          body: JSON.stringify({ action, url: urlInput })
+        });
+
+        const text = await res.text();
+
+        if (res.ok) {
+          showStatus(text, 'success');
+          document.getElementById('url').value = '';
+          loadList();
+        } else {
+          showStatus(`Gagal: ${text} (${res.status})`, 'error');
+        }
+      } catch (err) {
+        showStatus(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    async function sendEdit() {
+      try {
+        const token = await getToken();
+        const oldUrl = document.getElementById('oldUrl').value.trim();
+        const newUrl = document.getElementById('newUrl').value.trim();
+
+        if (!oldUrl || !newUrl) throw new Error('URL lama dan baru wajib diisi!');
+
+        const status = document.getElementById('status');
+        status.textContent = 'Mengedit...';
+        status.className = 'loading';
+
+        const res = await fetch(`${workerUrl}/admin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Token': token
+          },
+          body: JSON.stringify({ action: 'edit', oldUrl, newUrl })
+        });
+
+        const text = await res.text();
+
+        if (res.ok) {
+          showStatus(text, 'success');
+          document.getElementById('oldUrl').value = '';
+          document.getElementById('newUrl').value = '';
+          loadList();
+        } else {
+          showStatus(`Gagal: ${text} (${res.status})`, 'error');
+        }
+      } catch (err) {
+        showStatus(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    async function loadList() {
+      try {
+        const token = await getToken();
+        const status = document.getElementById('status');
+        status.textContent = 'Memuat daftar...';
+        status.className = 'loading';
+
+        const res = await fetch(`${workerUrl}/admin/list`, {
+          method: 'GET',
+          headers: { 'X-Admin-Token': token }
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Gagal memuat daftar (${res.status}): ${text}`);
+        }
+
+        const list = await res.json();
+        const ul = document.getElementById('urlList');
+        ul.innerHTML = '';
+
+        if (list.length === 0) {
+          ul.innerHTML = '<li>Belum ada URL di daftar</li>';
+        } else {
+          list.forEach(url => {
+            const li = document.createElement('li');
+            li.textContent = url;
+            const btn = document.createElement('button');
+            btn.className = 'danger';
+            btn.textContent = 'Hapus';
+            btn.onclick = () => {
+              if (confirm(`Hapus URL ini?\n${url}`)) {
+                document.getElementById('url').value = url;
+                sendAction('remove');
+              }
+            };
+            li.appendChild(btn);
+            ul.appendChild(li);
+          });
+        }
+
+        status.textContent = `Daftar dimuat (${list.length} URL)`;
+        status.className = 'success';
+      } catch (err) {
+        showStatus(`Gagal memuat daftar: ${err.message}`, 'error');
+      }
+    }
+
+    async function generateLink() {
+      try {
+        const token = await getToken();
+        const linkArea = document.getElementById('generatedLink');
+        linkArea.innerHTML = '<div class="loading">Membuat link unik...</div>';
+
+        const res = await fetch(`${workerUrl}/admin/generate`, {
+          method: 'POST',
+          headers: { 'X-Admin-Token': token }
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Gagal generate (${res.status}): ${text}`);
+        }
+
+        const data = await res.json();
+        linkArea.innerHTML = `
+          <strong>Link unik berhasil dibuat:</strong><br>
+          <a href="${data.link}" target="_blank">${data.link}</a><br>
+          (UID: ${data.uid})<br>
+          <button class="copy" onclick="navigator.clipboard.writeText('${data.link}').then(() => alert('Link disalin!'))">Copy Link</button>
+        `;
+        showStatus('Link unik berhasil dibuat!', 'success');
+      } catch (err) {
+        document.getElementById('generatedLink').innerHTML = '';
+        showStatus(`Gagal generate: ${err.message}`, 'error');
+      }
+    }
+  </script>
+</body>
+</html>
